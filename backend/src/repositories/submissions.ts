@@ -11,6 +11,7 @@ function toSubmission(row: SubmissionRow) {
     title: row.title,
     authorName: row.author_name,
     status: row.status,
+    revision: row.revision,
     createdAt: row.created_at,
     reviewedBy: row.reviewed_by,
     reviewerName: row.reviewer_name,
@@ -67,7 +68,7 @@ export function getSubmission(db: Database.Database, id: number) {
   if (!row) return null;
   const logs = db
     .prepare(
-      `SELECT id, batch_id AS batchId, operator_id AS operatorId, operator_name AS operatorName,
+      `SELECT id, batch_id AS batchId, operator_id AS operatorId, operator_name AS operatorName, action,
     from_status AS fromStatus, to_status AS toStatus, reason, created_at AS createdAt
     FROM review_logs WHERE submission_id = ? ORDER BY id ASC`,
     )

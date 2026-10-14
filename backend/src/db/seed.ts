@@ -105,7 +105,7 @@ export function seedDatabase(db: Database.Database) {
     const time = new Date(Date.UTC(2026, 9, 13, 10, id)).toISOString();
     db.prepare(
       `UPDATE submissions SET status = ?, reviewed_by = ?, reviewer_name = ?,
-      reviewed_at = ?, rejection_reason = ? WHERE id = ?`,
+      reviewed_at = ?, rejection_reason = ?, revision = 1 WHERE id = ?`,
     ).run(status, operator.id, operator.name, time, reason, id);
     db.prepare(
       `INSERT INTO review_logs (submission_id, batch_id, operator_id, operator_name,

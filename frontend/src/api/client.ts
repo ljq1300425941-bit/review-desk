@@ -9,6 +9,7 @@ export interface Submission {
   title: string;
   authorName: string;
   status: Status;
+  revision: number;
   createdAt: string;
   reviewedBy: string | null;
   reviewerName: string | null;
@@ -26,6 +27,7 @@ export interface ReviewLog {
   batchId: string;
   operatorId: string;
   operatorName: string;
+  action: "review" | "withdraw";
   fromStatus: Status;
   toStatus: Status;
   reason: string | null;
@@ -44,7 +46,12 @@ export interface ListResponse {
 }
 export interface BatchRequest {
   operatorId: string;
-  items: { submissionId: number; decision: Decision; reason?: string }[];
+  items: {
+    submissionId: number;
+    expectedRevision: number;
+    decision: Decision;
+    reason?: string;
+  }[];
 }
 export interface BatchResponse {
   batchId: string;
@@ -119,6 +126,19 @@ export const api = {
   detail: (id: number) => request<Detail>(`/api/submissions/${id}`),
   review: (body: BatchRequest) =>
     request<BatchResponse>("/api/reviews/batch", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  withdraw: (
+    id: number,
+    body: { operatorId: string; expectedRevision: number },
+  ) =>
+    request<{
+      submissionId: number;
+      status: "pending";
+      revision: number;
+      message: string;
+    }>(`/api/submissions/${id}/withdraw`, {
       method: "POST",
       body: JSON.stringify(body),
     }),

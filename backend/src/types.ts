@@ -14,6 +14,7 @@ export interface SubmissionRow {
   body: string;
   author_name: string;
   status: SubmissionStatus;
+  revision: number;
   attachments_json: string;
   created_at: string;
   reviewed_by: string | null;
@@ -24,6 +25,7 @@ export interface SubmissionRow {
 
 export interface ReviewItem {
   submissionId: number;
+  expectedRevision?: number;
   decision: Decision;
   reason?: string | null;
 }

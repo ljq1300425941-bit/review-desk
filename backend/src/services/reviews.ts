@@ -4,14 +4,24 @@ import { z } from "zod";
 import { operators } from "../config/operators.js";
 import type { ReviewResult, SubmissionStatus } from "../types.js";
 
+export const operatorIdSchema = z
+  .string()
+  .refine(
+    (id) => operators.some((operator) => operator.id === id),
+    "请选择有效的操作人",
+  );
+const expectedRevisionSchema = z.number().int().nonnegative().default(0);
+
 const itemSchema = z.discriminatedUnion("decision", [
   z.object({
     submissionId: z.number().int().positive(),
+    expectedRevision: expectedRevisionSchema,
     decision: z.literal("approve"),
     reason: z.string().nullable().optional(),
   }),
   z.object({
     submissionId: z.number().int().positive(),
+    expectedRevision: expectedRevisionSchema,
     decision: z.literal("reject"),
     reason: z
       .string()
@@ -26,12 +36,7 @@ const itemSchema = z.discriminatedUnion("decision", [
 
 export const reviewSchema = z
   .object({
-    operatorId: z
-      .string()
-      .refine(
-        (id) => operators.some((operator) => operator.id === id),
-        "请选择有效的操作人",
-      ),
+    operatorId: operatorIdSchema,
     items: z
       .array(itemSchema)
       .min(1, "至少选择一条投稿")
@@ -63,7 +68,8 @@ export function reviewBatch(
   const time = new Date().toISOString();
   const update =
     db.prepare(`UPDATE submissions SET status = ?, reviewed_by = ?, reviewer_name = ?,
-    reviewed_at = ?, rejection_reason = ? WHERE id = ? AND status = 'pending'`);
+    reviewed_at = ?, rejection_reason = ?, revision = revision + 1
+    WHERE id = ? AND status = 'pending' AND revision = ?`);
   const insertLog =
     db.prepare(`INSERT INTO review_logs (submission_id, batch_id, operator_id, operator_name,
     from_status, to_status, reason, created_at) VALUES (?, ?, ?, ?, 'pending', ?, ?, ?)`);
@@ -82,6 +88,7 @@ export function reviewBatch(
           time,
           reason,
           item.submissionId,
+          item.expectedRevision,
         );
         if (change.changes === 1) {
           insertLog.run(
@@ -108,7 +115,10 @@ export function reviewBatch(
                   submissionId: item.submissionId,
                   outcome: "conflict",
                   status: current.status,
-                  message: "该投稿已经被审核，请查看最新结果",
+                  message:
+                    current.status === "pending"
+                      ? "投稿状态已更新，请刷新后重新设置决策"
+                      : "该投稿已经被审核，请查看最新结果",
                 }
               : {
                   submissionId: item.submissionId,

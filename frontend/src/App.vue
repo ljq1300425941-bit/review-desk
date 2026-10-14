@@ -36,6 +36,7 @@ const error = ref("");
 const batchOpen = ref(false);
 const batchItems = ref<Submission[]>([]);
 const batchBusy = ref(false);
+const withdrawalBusy = ref(false);
 const detailOpen = ref(false);
 const detailId = ref<number | null>(null);
 const resultOpen = ref(false);
@@ -108,6 +109,10 @@ function completed(result: BatchResponse) {
   clearSelection();
   void load();
 }
+function withdrawn() {
+  resultOpen.value = false;
+  void load();
+}
 watch([status, q, page], () => void load());
 watch(status, () => {
   if (page.value !== 1) page.value = 1;
@@ -156,7 +161,7 @@ onMounted(() => {
             id="operator-select"
             v-model="operatorId"
             aria-label="当前审核员"
-            :disabled="batchOpen || batchBusy"
+            :disabled="batchOpen || batchBusy || withdrawalBusy"
             style="width: 136px"
             ><el-option
               v-for="person in operators"
@@ -284,7 +289,7 @@ onMounted(() => {
         </footer>
       </section>
       <p class="workspace-note">
-        已审核结果保留。遇到其他审核员先行处理的投稿，会逐条提示。
+        原处理人可在详情中撤回误审。投稿状态发生变化时，会逐条提示。
       </p>
     </main>
     <BatchDialog
@@ -304,7 +309,11 @@ onMounted(() => {
     <SubmissionDrawer
       v-model="detailOpen"
       :submission-id="detailId"
-      :allow-review="!batchOpen && !resultOpen && !!operator"
+      :allow-review="!batchOpen && !resultOpen && !!operator && !withdrawalBusy"
+      :allow-withdraw="!batchOpen && !!operator"
+      :operator="operator"
+      @withdrawn="withdrawn"
+      @busy="withdrawalBusy = $event"
       @review="
         detailOpen = false;
         openBatch([$event]);

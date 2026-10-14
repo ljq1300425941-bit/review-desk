@@ -11,6 +11,7 @@ CREATE TABLE submissions (
   body TEXT NOT NULL,
   author_name TEXT NOT NULL,
   status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
+  revision INTEGER NOT NULL DEFAULT 0 CHECK (revision >= 0),
   attachments_json TEXT NOT NULL DEFAULT '[]',
   created_at TEXT NOT NULL,
   reviewed_by TEXT,
@@ -31,15 +32,55 @@ CREATE TABLE review_logs (
   batch_id TEXT NOT NULL,
   operator_id TEXT NOT NULL,
   operator_name TEXT NOT NULL,
-  from_status TEXT NOT NULL CHECK (from_status = 'pending'),
-  to_status TEXT NOT NULL CHECK (to_status IN ('approved', 'rejected')),
+  action TEXT NOT NULL DEFAULT 'review' CHECK (action IN ('review', 'withdraw')),
+  from_status TEXT NOT NULL,
+  to_status TEXT NOT NULL,
   reason TEXT,
   created_at TEXT NOT NULL,
-  CHECK ((to_status = 'approved' AND reason IS NULL) OR
-    (to_status = 'rejected' AND reason IS NOT NULL AND length(trim(reason)) BETWEEN 1 AND 500))
+  CHECK (
+    (action = 'review' AND from_status = 'pending' AND
+      ((to_status = 'approved' AND reason IS NULL) OR
+       (to_status = 'rejected' AND reason IS NOT NULL AND length(trim(reason)) BETWEEN 1 AND 500)))
+    OR (action = 'withdraw' AND from_status IN ('approved', 'rejected') AND to_status = 'pending' AND reason IS NULL)
+  )
 );
 CREATE INDEX review_logs_submission ON review_logs(submission_id);
 `;
+
+function migrateV1(db: Database.Database) {
+  const dependentObjects = db
+    .prepare(
+      `SELECT sql FROM sqlite_schema
+    WHERE tbl_name = 'review_logs' AND type IN ('index', 'trigger') AND sql IS NOT NULL`,
+    )
+    .all() as { sql: string }[];
+  db.transaction(() => {
+    db.exec(`ALTER TABLE submissions ADD COLUMN revision INTEGER NOT NULL DEFAULT 0 CHECK (revision >= 0);
+      UPDATE submissions SET revision = (SELECT count(*) FROM review_logs WHERE submission_id = submissions.id);`);
+    const logsSchema = schema.slice(
+      schema.indexOf("CREATE TABLE review_logs ("),
+      schema.indexOf("CREATE INDEX review_logs_submission"),
+    );
+    db.exec(
+      logsSchema.replace(
+        "CREATE TABLE review_logs (",
+        "CREATE TABLE review_logs_v2 (",
+      ),
+    );
+    db.exec(`INSERT INTO review_logs_v2 (id, submission_id, batch_id, operator_id, operator_name, action, from_status, to_status, reason, created_at)
+      SELECT id, submission_id, batch_id, operator_id, operator_name, 'review', from_status, to_status, reason, created_at FROM review_logs;
+      DROP TABLE review_logs;
+      ALTER TABLE review_logs_v2 RENAME TO review_logs;`);
+    for (const object of dependentObjects) db.exec(object.sql);
+    db.exec(
+      "CREATE INDEX IF NOT EXISTS review_logs_submission ON review_logs(submission_id)",
+    );
+    const foreignKeyErrors = db.pragma("foreign_key_check");
+    if (!Array.isArray(foreignKeyErrors) || foreignKeyErrors.length)
+      throw new Error("Database migration failed foreign key validation");
+    db.pragma("user_version = 2");
+  }).immediate();
+}
 
 export function openDatabase(
   filename = databasePath,
@@ -56,9 +97,11 @@ export function openDatabase(
       db.transaction(() => {
         db.exec(schema);
         if (options.seed !== false) seedDatabase(db);
-        db.pragma("user_version = 1");
+        db.pragma("user_version = 2");
       }).immediate();
-    } else if (version !== 1) {
+    } else if (version === 1) {
+      migrateV1(db);
+    } else if (version !== 2) {
       throw new Error(`Unsupported database schema version: ${version}`);
     }
     return db;

@@ -4,6 +4,7 @@ import { z } from "zod";
 import { operators } from "../config/operators.js";
 import { getSubmission, listSubmissions } from "../repositories/submissions.js";
 import { reviewBatch, reviewSchema } from "../services/reviews.js";
+import { withdrawalSchema, withdrawReview } from "../services/withdrawals.js";
 
 const querySchema = z.object({
   status: z.enum(["pending", "approved", "rejected", "all"]).default("pending"),
@@ -33,5 +34,10 @@ export function apiRouter(db: Database.Database) {
   router.post("/reviews/batch", (request, response) =>
     response.json(reviewBatch(db, reviewSchema.parse(request.body))),
   );
+  router.post("/submissions/:id/withdraw", (request, response) => {
+    const id = z.coerce.number().int().positive().parse(request.params.id);
+    const result = withdrawReview(db, id, withdrawalSchema.parse(request.body));
+    response.status(result.statusCode).json(result.body);
+  });
   return router;
 }

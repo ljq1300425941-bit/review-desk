@@ -67,7 +67,9 @@ function validationLabel(path: string) {
   if (match) {
     const index = Number(match[1]);
     const item = active.value[index];
-    return item ? `第 ${index + 1} 条投稿（#${item.id}）` : `第 ${index + 1} 条投稿`;
+    return item
+      ? `第 ${index + 1} 条投稿（#${item.id}）`
+      : `第 ${index + 1} 条投稿`;
   }
   return path === "operatorId" ? "审核员" : "本次审核";
 }
@@ -121,6 +123,7 @@ async function submit() {
       operatorId,
       items: active.value.map((item) => ({
         submissionId: item.id,
+        expectedRevision: item.revision,
         decision: item.decision as "approve" | "reject",
         ...(item.decision === "reject" ? { reason: item.reason.trim() } : {}),
       })),
@@ -165,6 +168,7 @@ async function checkStatuses() {
     const item = drafts.value[index];
     if (response.status === "fulfilled") {
       item.status = response.value.status;
+      item.revision = response.value.revision;
       item.blocked =
         response.value.status === "pending" ? undefined : "reviewed";
     } else if (

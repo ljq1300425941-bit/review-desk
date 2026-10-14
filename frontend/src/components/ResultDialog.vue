@@ -17,10 +17,10 @@ const emit = defineEmits<{
     <template v-if="result">
       <div class="result-summary" role="status">
         <strong>成功 {{ result.summary.success }} 条</strong
-        ><span>已被处理 {{ result.summary.conflict }} 条</span
+        ><span>状态冲突 {{ result.summary.conflict }} 条</span
         ><span>不存在 {{ result.summary.notFound }} 条</span>
       </div>
-      <p class="muted">每条结果已列出；冲突项保留已有审核结果。</p>
+      <p class="muted">每条结果已列出；冲突项保持当前状态，请核对最新记录。</p>
       <el-table :data="result.results" max-height="380">
         <el-table-column prop="submissionId" label="投稿 ID" width="100" />
         <el-table-column label="结果" width="120"
@@ -34,7 +34,7 @@ const emit = defineEmits<{
                 row.outcome === "success"
                   ? statusLabels[row.status as keyof typeof statusLabels]
                   : row.outcome === "conflict"
-                    ? "已被处理"
+                    ? "状态冲突"
                     : "不存在"
               }}</span
             ></template
