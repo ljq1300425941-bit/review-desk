@@ -1,0 +1,14 @@
+node_modules/
+dist/
+.npm-cache/
+.playwright-cli/
+output/
+coverage/
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+*.db
+*.db-wal
+*.db-shm
+.env
+*.log
